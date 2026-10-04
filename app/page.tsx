@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import CentsNeedle from './cents-needle';
 import { detectPitch, centsBetween, frequencyToNote, nearestIndex, median } from '@/lib/pitch';
 
 interface Tuning {
@@ -204,15 +205,28 @@ export default function GuitarTuner() {
     };
   }, []);
 
-  // Needle position: -50..+50 cents mapped to 0..100%.
-  const needle = cents === null ? 50 : 50 + Math.max(-50, Math.min(50, cents));
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="bg-slate-800/80 backdrop-blur rounded-3xl shadow-2xl p-6 sm:p-8 border border-purple-500/20">
           <h1 className="text-3xl font-bold text-white text-center mb-2">Guitar Tuner</h1>
-          <p className="text-slate-400 text-center mb-6">Precise tuning, anytime</p>
+          <p className="text-slate-400 text-center mb-5">Precise tuning, anytime</p>
+
+          <button
+            onClick={isListening ? stopListening : startListening}
+            className={`w-full py-4 mb-6 rounded-xl font-bold text-lg text-white transition transform hover:scale-[1.02] ${
+              isListening ? 'bg-red-500/80 hover:bg-red-600' : 'bg-purple-600 hover:bg-purple-700'
+            }`}
+          >
+            {isListening ? '🎙️ Stop Tuning' : '🎙️ Start Tuning'}
+          </button>
+
+          {error && (
+            <p className="-mt-3 mb-6 rounded-lg bg-red-500/10 border border-red-500/30 text-red-300 text-sm p-3">
+              {error}
+            </p>
+          )}
 
           {/* Tuning select */}
           <label className="block text-xs uppercase tracking-wide text-slate-400 mb-2" htmlFor="tuning">
@@ -309,11 +323,9 @@ export default function GuitarTuner() {
                   style={{ left: `${50 + t}%` }}
                 />
               ))}
-              <div
-                className={`absolute top-0 bottom-0 w-1 -ml-0.5 rounded-full transition-all duration-100 ${
-                  cents === null ? 'bg-slate-600' : inTune ? 'bg-green-400' : 'bg-red-400'
-                }`}
-                style={{ left: `${needle}%` }}
+              <CentsNeedle
+                cents={cents}
+                className={cents === null ? 'bg-slate-600' : inTune ? 'bg-green-400' : 'bg-red-400'}
               />
             </div>
             <div className="flex justify-between text-[10px] text-slate-500 mb-4">
@@ -344,21 +356,6 @@ export default function GuitarTuner() {
                 : ''}
             </p>
           </div>
-
-          {error && (
-            <p className="mb-4 rounded-lg bg-red-500/10 border border-red-500/30 text-red-300 text-sm p-3">
-              {error}
-            </p>
-          )}
-
-          <button
-            onClick={isListening ? stopListening : startListening}
-            className={`w-full py-4 rounded-xl font-bold text-lg text-white transition transform hover:scale-[1.02] ${
-              isListening ? 'bg-red-500/80 hover:bg-red-600' : 'bg-purple-600 hover:bg-purple-700'
-            }`}
-          >
-            {isListening ? '🎙️ Stop Tuning' : '🎙️ Start Tuning'}
-          </button>
 
           <p className="text-center text-xs text-slate-500 mt-6">
             Allow microphone access · Pluck one string at a time
