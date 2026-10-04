@@ -326,7 +326,7 @@ export default function GuitarTuner() {
 
           <button
             onClick={isListening ? stopListening : startListening}
-            className={`w-full py-4 mb-6 rounded-xl font-bold text-lg text-white transition transform hover:scale-[1.02] ${
+            className={`w-full py-4 mb-6 rounded-full font-bold text-lg text-white transition transform hover:scale-[1.02] ${
               isListening ? 'bg-red-500/80 hover:bg-red-600' : 'bg-purple-600 hover:bg-purple-700'
             }`}
           >
