@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Bonbon, Geist, Geist_Mono } from "next/font/google";
+import { Damion, Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import Splash from "./splash";
 
@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-const bonbon = Bonbon({
-  variable: "--font-bonbon",
+const damion = Damion({
+  variable: "--font-damion",
   weight: "400",
   display: "block",
   subsets: ["latin"],
@@ -33,7 +33,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} ${bonbon.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${damion.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
         <Splash />
