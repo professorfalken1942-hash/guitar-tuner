@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useSyncExternalStore } from 'react';
 import CentsNeedle from './cents-needle';
 import { detectPitch, centsBetween, frequencyToNote, nearestIndex, median } from '@/lib/pitch';
 
@@ -72,6 +72,49 @@ const IN_TUNE_CENTS = 5;
 const SMOOTHING_FRAMES = 7;
 const HOLD_MS = 1200;
 
+const CHIME_HOLD_MS = 500;
+const CHIME_RESET_CENTS = 12;
+const CHIME_DURATION_MS = 1300;
+
+// Chime preference, remembered per device.
+const chimeListeners = new Set<() => void>();
+function subscribeChime(listener: () => void) {
+  chimeListeners.add(listener);
+  return () => chimeListeners.delete(listener);
+}
+function readChime() {
+  try {
+    return localStorage.getItem('chime') !== 'off';
+  } catch {
+    return true;
+  }
+}
+function writeChime(on: boolean) {
+  try {
+    localStorage.setItem('chime', on ? 'on' : 'off');
+  } catch {}
+  chimeListeners.forEach(listener => listener());
+}
+
+// Soft bell, quiet enough not to swamp the guitar.
+function playChime(ctx: AudioContext) {
+  const t = ctx.currentTime;
+  const out = ctx.createGain();
+  out.gain.setValueAtTime(0, t);
+  out.gain.linearRampToValueAtTime(0.18, t + 0.01);
+  out.gain.exponentialRampToValueAtTime(0.001, t + 1.2);
+  out.connect(ctx.destination);
+  for (const [freq, level] of [[1760, 1], [2637, 0.35], [3520, 0.12]]) {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.frequency.value = freq;
+    gain.gain.value = level;
+    osc.connect(gain).connect(out);
+    osc.start(t);
+    osc.stop(t + 1.2);
+  }
+}
+
 export default function GuitarTuner() {
   const [isListening, setIsListening] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -80,11 +123,15 @@ export default function GuitarTuner() {
   const [autoDetect, setAutoDetect] = useState(true);
   const [manualString, setManualString] = useState(0);
   const [playingString, setPlayingString] = useState<number | null>(null);
+  const chimeOn = useSyncExternalStore(subscribeChime, readChime, () => true);
 
   const audioContextRef = useRef<AudioContext | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const animationIdRef = useRef<number | null>(null);
   const oscillatorRef = useRef<OscillatorNode | null>(null);
+  const inTuneSinceRef = useRef<number | null>(null);
+  const chimedStringRef = useRef<string | null>(null);
+  const chimeRingingUntilRef = useRef(0);
 
   const tuning = TUNINGS[selectedTuning];
   const targets = tuning.strings.map(s => s.freq);
@@ -134,9 +181,15 @@ export default function GuitarTuner() {
       let lastHeard = 0;
 
       const detectLoop = () => {
+        const now = performance.now();
+        // The mic hears our own chime; hold the last reading until it fades.
+        if (now < chimeRingingUntilRef.current) {
+          lastHeard = now;
+          animationIdRef.current = requestAnimationFrame(detectLoop);
+          return;
+        }
         analyser.getFloatTimeDomainData(buffer);
         const freq = detectPitch(buffer, audioContext.sampleRate);
-        const now = performance.now();
 
         if (freq) {
           // Drop history when the pitch jumps (e.g. moving to another string).
@@ -204,6 +257,34 @@ export default function GuitarTuner() {
       audioContextRef.current?.close();
     };
   }, []);
+
+  // Chime once when a string holds in tune. Re-arm only after drifting clearly
+  // out of tune or switching strings, so re-plucking a tuned string stays quiet.
+  useEffect(() => {
+    const key = `${selectedTuning}:${activeString}`;
+    if (chimedStringRef.current && chimedStringRef.current !== key) {
+      chimedStringRef.current = null;
+    }
+    if (cents === null) {
+      inTuneSinceRef.current = null;
+      return;
+    }
+    if (Math.abs(cents) > CHIME_RESET_CENTS) chimedStringRef.current = null;
+    if (Math.abs(cents) > IN_TUNE_CENTS) {
+      inTuneSinceRef.current = null;
+      return;
+    }
+
+    const now = performance.now();
+    inTuneSinceRef.current ??= now;
+    if (now - inTuneSinceRef.current >= CHIME_HOLD_MS && chimedStringRef.current !== key) {
+      chimedStringRef.current = key;
+      if (chimeOn && audioContextRef.current) {
+        playChime(audioContextRef.current);
+        chimeRingingUntilRef.current = now + CHIME_DURATION_MS;
+      }
+    }
+  }, [cents, activeString, selectedTuning, chimeOn]);
 
   // Keep the screen awake while tuning. The browser drops the lock when the page
   // is hidden, so re-acquire it when the user comes back.
@@ -282,15 +363,28 @@ export default function GuitarTuner() {
           {/* String selector */}
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs uppercase tracking-wide text-slate-400">String</span>
-            <label className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={autoDetect}
-                onChange={e => setAutoDetect(e.target.checked)}
-                className="accent-purple-500"
-              />
-              Auto-detect
-            </label>
+            <div className="flex items-center gap-4">
+              <label className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={chimeOn}
+                  onChange={e => {
+                    writeChime(e.target.checked);
+                  }}
+                  className="accent-purple-500"
+                />
+                Chime
+              </label>
+              <label className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={autoDetect}
+                  onChange={e => setAutoDetect(e.target.checked)}
+                  className="accent-purple-500"
+                />
+                Auto-detect
+              </label>
+            </div>
           </div>
           <div className="grid grid-cols-6 gap-2 mb-2">
             {tuning.strings.map((s, idx) => (
