@@ -208,7 +208,7 @@ export default function GuitarTuner() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
+      <div className="w-full max-w-md app-enter">
         <div className="bg-slate-800/80 backdrop-blur rounded-3xl shadow-2xl p-6 sm:p-8 border border-purple-500/20">
           <h1 className="font-display text-5xl text-white text-center mb-2">Trootone</h1>
           <p className="text-slate-400 text-center mb-5">Precise tuning, anytime</p>
