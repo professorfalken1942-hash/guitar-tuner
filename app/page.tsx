@@ -205,6 +205,36 @@ export default function GuitarTuner() {
     };
   }, []);
 
+  // Keep the screen awake while tuning. The browser drops the lock when the page
+  // is hidden, so re-acquire it when the user comes back.
+  useEffect(() => {
+    if (!isListening || !('wakeLock' in navigator)) return;
+    let lock: WakeLockSentinel | null = null;
+    let cancelled = false;
+
+    const acquire = async () => {
+      if (lock && !lock.released) return;
+      try {
+        const sentinel = await navigator.wakeLock.request('screen');
+        if (cancelled) sentinel.release();
+        else lock = sentinel;
+      } catch {
+        // Denied (e.g. low battery mode); tuning still works, the screen may just sleep.
+      }
+    };
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') acquire();
+    };
+
+    acquire();
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      cancelled = true;
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      lock?.release();
+    };
+  }, [isListening]);
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-4">
@@ -219,7 +249,7 @@ export default function GuitarTuner() {
               isListening ? 'bg-red-500/80 hover:bg-red-600' : 'bg-purple-600 hover:bg-purple-700'
             }`}
           >
-            {isListening ? '🎙️ Stop Tuning' : '🎙️ Start Tuning'}
+            {isListening ? 'Stop Tuning' : 'Start Tuning'}
           </button>
 
           {error && (
