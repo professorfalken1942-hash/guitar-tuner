@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Guitar Tuner",
+  title: "Trootone · Guitar Tuner",
   description: "Free in-browser chromatic guitar tuner with standard and alternate tunings.",
 };
 
